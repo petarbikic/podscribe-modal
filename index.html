@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Podscribe – Manage Products</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            border: "hsl(220 13% 91%)",
+            input: "hsl(220 13% 91%)",
+            background: "hsl(0 0% 100%)",
+            foreground: "hsl(224 71.4% 4.1%)",
+            muted: { DEFAULT: "hsl(220 14.3% 95.9%)", foreground: "hsl(220 8.9% 46.1%)" },
+            secondary: { DEFAULT: "hsl(220 14.3% 95.9%)", foreground: "hsl(220.9 39.3% 11%)" },
+          },
+          borderRadius: { lg: "0.625rem" },
+          keyframes: {
+            "zoom-in":  { from: { opacity: "0", transform: "scale(.95) translate(-50%,-50%)" }, to: { opacity: "1", transform: "scale(1) translate(-50%,-50%)" } },
+            "slide-in": { from: { opacity: "0", transform: "translateY(6px)" }, to: { opacity: "1", transform: "translateY(0)" } },
+          },
+          animation: {
+            "zoom-in":  "zoom-in 0.15s ease",
+            "slide-in": "slide-in 0.2s ease",
+          },
+        },
+      },
+    }
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: "Open Sans", sans-serif; }
+    .scrollable::-webkit-scrollbar { width: 4px; }
+    .scrollable::-webkit-scrollbar-track { background: transparent; }
+    .scrollable::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 99px; }
+    input:focus { outline: none; box-shadow: 0 0 0 3px rgba(0,0,0,0.1); border-color: #0f172a !important; }
+    .modal-backdrop { transition: opacity 0.15s ease; }
+    .modal-backdrop.closing { opacity: 0; }
+    .modal-box { transition: opacity 0.15s ease, transform 0.15s ease; }
+    .modal-box.closing { opacity: 0; transform: translate(-50%,-50%) scale(0.95); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin { animation: spin 0.8s linear infinite; }
+    /* Ensure sticky works inside overflow container */
+    #modal-body { overflow-y: auto; }
+  </style>
+</head>
+<body class="bg-muted min-h-screen">
+
+  <div class="max-w-3xl mx-auto py-16 px-6">
+    <div class="bg-background rounded-xl border border-border p-5 flex items-center justify-between shadow-sm">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-pink-100 flex items-center justify-center text-sm font-bold text-pink-700">H</div>
+        <div>
+          <p class="text-sm font-semibold text-foreground">Hims/Hers</p>
+          <p class="text-xs text-muted-foreground">16 products · Podcast &amp; Streaming</p>
+        </div>
+      </div>
+      <button onclick="openModal()" class="inline-flex items-center justify-center h-8 px-3 text-sm font-medium rounded-lg border border-border bg-background text-foreground hover:bg-muted transition-colors">
+        Manage Products
+      </button>
+    </div>
+  </div>
+
+  <div id="toast-stack" class="fixed bottom-4 right-4 z-[500] flex flex-col gap-2 pointer-events-none"></div>
+
+  <div id="modal-root" class="hidden">
+    <div id="modal-backdrop" onclick="closeModal()" class="modal-backdrop fixed inset-0 z-50 bg-black/40"></div>
+    <div id="modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-title"
+      class="modal-box fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[720px] max-h-[90vh] bg-background rounded-xl shadow-xl overflow-hidden flex flex-col">
+
+      <!-- Modal header — always visible, not in scroll container -->
+      <div class="flex items-start justify-between gap-4 px-6 pt-6 pb-4 shrink-0" style="border-bottom:1px solid #e9ecef">
+        <div>
+          <h2 id="modal-title" class="text-base font-semibold text-foreground" style="display:flex;align-items:center;gap:7px;">
+            Manage
+            <img src="https://newalbanyohio.org/wp-content/uploads/2025/12/hims-hers-logo.png" alt="Hims/Hers" style="width:24px;height:24px;object-fit:cover;border-radius:4px;flex-shrink:0;" onerror="this.style.display='none'">
+            Hims/Hers Products
+          </h2>
+          <p class="mt-0.5 text-sm text-muted-foreground">Rename or merge products detected for this advertiser.</p>
+        </div>
+        <button onclick="closeModal()" class="p-1 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0 mt-0.5" aria-label="Close">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <!-- Scrollable body -->
+      <div id="modal-body" class="flex-1 min-h-0 scrollable"></div>
+
+      <!-- Scroll-down indicator (shadcn Select style) -->
+      <div id="scroll-ind"
+        style="position:absolute;bottom:0;left:0;right:0;height:52px;
+               background:linear-gradient(to bottom, transparent, rgba(255,255,255,0.96) 55%);
+               display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px;
+               opacity:0;pointer-events:none;transition:opacity 0.18s;z-index:30;border-radius:0 0 12px 12px;"
+        onmouseenter="startScrollDown()" onmouseleave="stopScrollDown()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── Icons ─────────────────────────────────────────────────────────────────
+    const ICON = {
+      search: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
+      plus:   `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
+      pencil: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>`,
+      merge:  `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 6 4-4 4 4"/><path d="M12 2v10.3a4 4 0 0 1-1.172 2.872L4 22"/><path d="m20 22-5-5"/></svg>`,
+      trash:  `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>`,
+      back:   `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>`,
+      check:  `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
+      spin:   `<svg class="spin" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`,
+      warn:   `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+      close:  `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
+    }
+
+    // ── Global tooltip (fixed position — bypasses overflow:hidden) ────────────
+    let _tip = null
+    let _tipEl = null
+
+    function showTip(el) {
+      if (_tip) { _tip.remove(); _tip = null }
+      _tipEl = el
+      _tip = document.createElement('div')
+      _tip.style.cssText = 'position:fixed;z-index:9999;background:#0f172a;color:#f8fafc;font-size:11px;line-height:1.4;padding:5px 10px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.25);pointer-events:none;white-space:nowrap;'
+      _tip.textContent = el.getAttribute('data-tip')
+      document.body.appendChild(_tip)
+      const side = el.getAttribute('data-tip-side') || 'top'
+      const r = el.getBoundingClientRect()
+      _tip.style.left = Math.max(4, r.left + r.width / 2 - _tip.offsetWidth / 2) + 'px'
+      _tip.style.top  = side === 'bottom' ? (r.bottom + 6) + 'px' : (r.top - _tip.offsetHeight - 6) + 'px'
+    }
+
+    // ── Scroll indicator ──────────────────────────────────────────────────────
+    let _scrollTimer = null
+
+    function updateScrollInd() {
+      const body = document.getElementById("modal-body")
+      const ind  = document.getElementById("scroll-ind")
+      if (!body || !ind) return
+      const hasMore = currentView === "list" && body.scrollHeight - body.scrollTop - body.clientHeight > 6
+      ind.style.opacity       = hasMore ? "1" : "0"
+      ind.style.pointerEvents = hasMore ? "auto" : "none"
+      if (!hasMore) stopScrollDown()
+    }
+
+    function startScrollDown() {
+      const body = document.getElementById("modal-body")
+      if (!body) return
+      _scrollTimer = setInterval(() => {
+        body.scrollTop += 5
+        updateScrollInd()
+      }, 16)
+    }
+
+    function stopScrollDown() {
+      clearInterval(_scrollTimer)
+      _scrollTimer = null
+    }
+
+    function hideTip() {
+      if (_tip) { _tip.remove(); _tip = null }
+      _tipEl = null
+    }
+
+    document.addEventListener('mouseover', e => {
+      const el = e.target.closest('[data-tip]')
+      if (!el) return
+      if (el === _tipEl) return   // still on same element, nothing to do
+      showTip(el)                 // new element → replace tooltip immediately
+    })
+
+    document.addEventListener('mouseout', e => {
+      if (!_tip) return
+      const to = e.relatedTarget?.closest('[data-tip]')
+      if (to && to !== _tipEl) return  // moving to a different tip element — mouseover will handle it
+      if (!to) hideTip()               // leaving all tip elements
+    })
+
+    // ── Data ──────────────────────────────────────────────────────────────────
+    let products = [
+      { id:  "1", name: "Hims Ed Treatments",                      ads: 12, lastSeen: "Apr 24, 2026" },
+      { id:  "2", name: "Sildenafil (Generic For Viagra)",          ads:  8, lastSeen: "Apr 22, 2026" },
+      { id:  "3", name: "Hers Weight Loss Treatment Plans",         ads: 15, lastSeen: "Apr 24, 2026" },
+      { id:  "4", name: "Wegovy",                                   ads:  5, lastSeen: "Apr 20, 2026" },
+      { id:  "5", name: "Weight Loss By Hims (Glp-1 Medications)",  ads:  9, lastSeen: "Apr 23, 2026" },
+      { id:  "6", name: "Perimenopause And Menopause By Hers",      ads:  7, lastSeen: "Apr 21, 2026" },
+      { id:  "7", name: "Hair Loss By Hims",                        ads: 18, lastSeen: "Apr 24, 2026" },
+      { id:  "8", name: "Finasteride (Generic For Propecia)",        ads: 11, lastSeen: "Apr 19, 2026" },
+      { id:  "9", name: "Minoxidil Foam By Hims",                   ads:  6, lastSeen: "Apr 17, 2026" },
+      { id: "10", name: "Anti-Aging Skincare By Hers",              ads: 20, lastSeen: "Apr 24, 2026" },
+      { id: "11", name: "Birth Control By Hers",                    ads:  3, lastSeen: "Apr 15, 2026" },
+      { id: "12", name: "Tretinoin By Hers",                        ads: 14, lastSeen: "Apr 23, 2026" },
+      { id: "13", name: "Anxiety Treatment By Hims",                ads:  4, lastSeen: "Apr 18, 2026" },
+      { id: "14", name: "Premature Ejaculation By Hims",            ads:  2, lastSeen: "Apr 11, 2026" },
+      { id: "15", name: "Sleep By Hims",                            ads: 10, lastSeen: "Apr 22, 2026" },
+      { id: "16", name: "Cold Sore Treatment By Hers",              ads:  1, lastSeen: "Apr 10, 2026" },
+    ]
+
+    let currentView    = "list"
+    let activeProduct  = null
+    let renameProductId = null
+    let listSearch     = ""
+    let mergeSearch    = ""
+    let mergeTarget    = null
+    let toastCounter   = 0
+    let sortCol        = "ads"   // null | "name" | "ads" | "lastSeen"
+    let sortDir        = "desc" // "asc" | "desc"
+
+    // ── Toast ─────────────────────────────────────────────────────────────────
+    function showToast(msg) {
+      const el = document.createElement("div")
+      el.className = "flex items-center gap-2 bg-foreground text-background text-sm px-4 py-2.5 rounded-lg shadow-lg animate-slide-in"
+      el.innerHTML = `${ICON.check}${esc(msg)}`
+      document.getElementById("toast-stack").appendChild(el)
+      setTimeout(() => el.remove(), 3000)
+    }
+
+    // ── Modal open / close ────────────────────────────────────────────────────
+    function openModal() {
+      currentView = "list"; activeProduct = null; renameProductId = null; listSearch = ""; mergeSearch = ""; mergeTarget = null; sortCol = "ads"; sortDir = "desc"
+      const root = document.getElementById("modal-root")
+      const box  = document.getElementById("modal-box")
+      root.classList.remove("hidden")
+      box.classList.remove("closing")
+      document.getElementById("modal-backdrop").classList.remove("closing")
+      box.style.animation = "none"; void box.offsetWidth; box.style.animation = ""
+      box.classList.add("animate-zoom-in")
+      renderBody()
+    }
+
+    function closeModal() {
+      stopScrollDown()
+      if (_tip) { _tip.remove(); _tip = null }
+      const box = document.getElementById("modal-box")
+      box.classList.add("closing")
+      document.getElementById("modal-backdrop").classList.add("closing")
+      setTimeout(() => {
+        document.getElementById("modal-root").classList.add("hidden")
+        box.classList.remove("closing", "animate-zoom-in")
+      }, 150)
+    }
+
+    function renderBody() {
+      if      (currentView === "list")  renderListView()
+      else if (currentView === "merge") renderMergeView()
+    }
+
+    // ── Sort helpers ──────────────────────────────────────────────────────────
+    function sortArrowSVG(col) {
+      const active = sortCol === col
+      if (!active) return `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.3"><path d="m7 9 5-5 5 5"/><path d="m7 15 5 5 5-5"/></svg>`
+      if (sortDir === "asc")  return `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 9 5-5 5 5"/></svg>`
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/></svg>`
+    }
+
+    function toggleSort(col) {
+      sortCol === col ? (sortDir = sortDir === "asc" ? "desc" : "asc") : (sortCol = col, sortDir = "asc")
+      // Update only sort indicators and rows — do NOT touch the toolbar/input
+      ;["name", "ads", "lastSeen"].forEach(c => {
+        const el = document.getElementById("sa-" + c)
+        if (el) el.innerHTML = sortArrowSVG(c)
+      })
+      const tbody = document.getElementById("list-tbody")
+      if (tbody) tbody.innerHTML = getRows()
+      updateScrollInd()
+    }
+
+    // ── Build sorted/filtered rows ────────────────────────────────────────────
+    function getRows() {
+      let list = products.filter(p => p.name.toLowerCase().includes(listSearch.toLowerCase()))
+      if (sortCol) {
+        list = [...list].sort((a, b) => {
+          let va, vb
+          if      (sortCol === "name")     { va = a.name.toLowerCase(); vb = b.name.toLowerCase() }
+          else if (sortCol === "ads")      { va = a.ads; vb = b.ads }
+          else if (sortCol === "lastSeen") { va = new Date(a.lastSeen); vb = new Date(b.lastSeen) }
+          return sortDir === "asc" ? (va > vb ? 1 : va < vb ? -1 : 0) : (va < vb ? 1 : va > vb ? -1 : 0)
+        })
+      }
+      if (!list.length) return `<tr><td colspan="4" style="padding:40px;text-align:center;font-size:14px;color:#6b7280;">No products found.</td></tr>`
+      return list.map(p => {
+        if (p.id === renameProductId) {
+          return `
+            <tr style="border-bottom:1px solid #f1f5f9;background:#f8fafc;">
+              <td colspan="4" style="padding:12px 16px;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                  <input id="rename-inline-input" type="text" value="${esc(p.name)}"
+                    onkeydown="if(event.key==='Enter')saveInlineRename();if(event.key==='Escape')cancelRename()"
+                    style="flex:1;height:32px;padding:0 10px;font-size:14px;border:1px solid #6b7280;border-radius:8px;background:#fff;outline:none;box-shadow:0 0 0 3px rgba(0,0,0,0.08);"
+                  />
+                  <button id="rename-save-icon" data-tip="Save" data-tip-side="top" onclick="saveInlineRename()"
+                    style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;border:none;background:#0f172a;color:#fff;cursor:pointer;flex-shrink:0;"
+                  >${ICON.check}</button>
+                  <button id="rename-cancel-icon" data-tip="Cancel" data-tip-side="top" onclick="cancelRename()"
+                    style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;border:1px solid #e5e7eb;background:#fff;color:#6b7280;cursor:pointer;flex-shrink:0;"
+                  >${ICON.close}</button>
+                </div>
+                <p style="font-size:12px;color:#9ca3af;">This only changes the product name. Existing product associations stay the same.</p>
+              </td>
+            </tr>
+          `
+        }
+        return `
+          <tr class="group" style="border-bottom:1px solid #f1f5f9;transition:background 0.1s" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+            <td style="padding:12px 16px;font-size:14px;font-weight:500;color:#111827;">${esc(p.name)}</td>
+            <td style="padding:12px 16px;font-size:14px;color:#6b7280;white-space:nowrap;">${p.ads}</td>
+            <td style="padding:12px 16px;font-size:14px;color:#6b7280;white-space:nowrap;">${p.lastSeen}</td>
+            <td style="padding:12px 16px;text-align:right;">
+              <div class="row-actions" style="display:flex;align-items:center;gap:4px;justify-content:flex-end;opacity:0;transition:opacity 0.15s">
+                <button data-tip="Rename" data-tip-side="top" onclick="startRename('${p.id}')"
+                  style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;border:none;background:transparent;color:#6b7280;cursor:pointer;transition:background 0.1s,color 0.1s"
+                  onmouseover="this.style.background='#f1f5f9';this.style.color='#111827'" onmouseout="this.style.background='transparent';this.style.color='#6b7280'"
+                >${ICON.pencil}</button>
+                <button data-tip="Merge into" data-tip-side="top" onclick="startMerge('${p.id}')"
+                  style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;border:none;background:transparent;color:#6b7280;cursor:pointer;transition:background 0.1s,color 0.1s"
+                  onmouseover="this.style.background='#f1f5f9';this.style.color='#111827'" onmouseout="this.style.background='transparent';this.style.color='#6b7280'"
+                >${ICON.merge}</button>
+                </div>
+            </td>
+          </tr>
+        `
+      }).join("")
+    }
+
+    // ── List view ─────────────────────────────────────────────────────────────
+    // Toolbar height: py-3 (12+12) + input h-8 (32) + border (1) = 57px
+    const TOOLBAR_H = 57
+
+    function renderListView() {
+      document.getElementById("modal-body").innerHTML = `
+        <!-- Toolbar: sticky top:0 -->
+        <div style="position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid #f1f5f9;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 16px;">
+            <div style="position:relative;width:30%;">
+              <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#9ca3af;pointer-events:none;">${ICON.search}</span>
+              <input id="list-search" type="text" placeholder="Search products" value="${esc(listSearch)}"
+                style="width:100%;height:32px;padding:0 12px 0 32px;font-size:14px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;outline:none;"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Table: thead is sticky at top:TOOLBAR_H -->
+        <table style="width:100%;border-collapse:separate;border-spacing:0;">
+          <thead>
+            <tr style="background:#fff;">
+              <th style="position:sticky;top:${TOOLBAR_H}px;z-index:10;background:#fff;padding:10px 16px;text-align:left;font-size:12px;font-weight:500;color:#6b7280;border-bottom:1px solid #f1f5f9;border-top:none;">
+                <button onclick="toggleSort('name')" style="display:inline-flex;align-items:center;gap:6px;border:none;background:none;padding:0;cursor:pointer;font-size:12px;font-weight:500;color:#6b7280;" onmouseover="this.style.color='#111827'" onmouseout="this.style.color='#6b7280'">
+                  Product <span id="sa-name">${sortArrowSVG("name")}</span>
+                </button>
+              </th>
+              <th style="position:sticky;top:${TOOLBAR_H}px;z-index:10;background:#fff;padding:10px 16px;text-align:left;font-size:12px;font-weight:500;color:#6b7280;border-bottom:1px solid #f1f5f9;white-space:nowrap;">
+                <button onclick="toggleSort('ads')" style="display:inline-flex;align-items:center;gap:6px;border:none;background:none;padding:0;cursor:pointer;font-size:12px;font-weight:500;color:#6b7280;" onmouseover="this.style.color='#111827'" onmouseout="this.style.color='#6b7280'">
+                  Ads <span id="sa-ads">${sortArrowSVG("ads")}</span>
+                </button>
+              </th>
+              <th style="position:sticky;top:${TOOLBAR_H}px;z-index:10;background:#fff;padding:10px 16px;text-align:left;font-size:12px;font-weight:500;color:#6b7280;border-bottom:1px solid #f1f5f9;white-space:nowrap;">
+                <button onclick="toggleSort('lastSeen')" style="display:inline-flex;align-items:center;gap:6px;border:none;background:none;padding:0;cursor:pointer;font-size:12px;font-weight:500;color:#6b7280;" onmouseover="this.style.color='#111827'" onmouseout="this.style.color='#6b7280'">
+                  Last Seen <span id="sa-lastSeen">${sortArrowSVG("lastSeen")}</span>
+                </button>
+              </th>
+              <th style="position:sticky;top:${TOOLBAR_H}px;z-index:10;background:#fff;padding:10px 16px;border-bottom:1px solid #f1f5f9;"></th>
+            </tr>
+          </thead>
+          <tbody id="list-tbody">${getRows()}</tbody>
+        </table>
+      `
+
+      // Attach listener directly — NOT oninput — so the input is never recreated on typing
+      document.getElementById("list-search").addEventListener("input", e => {
+        listSearch = e.target.value
+        document.getElementById("list-tbody").innerHTML = getRows()
+        updateScrollInd()
+      })
+
+      // Show row actions on hover via event delegation (works after re-renders)
+      document.getElementById("modal-body").addEventListener("mouseover", rowHover)
+      document.getElementById("modal-body").addEventListener("mouseout",  rowHoverOut)
+      document.getElementById("modal-body").addEventListener("scroll",    updateScrollInd)
+
+      setTimeout(updateScrollInd, 50)
+    }
+
+    function rowHover(e) {
+      const row = e.target.closest("tr[onmouseover]") || e.target.closest("tr")
+      if (!row) return
+      const actions = row.querySelector(".row-actions")
+      if (actions) actions.style.opacity = "1"
+    }
+    function rowHoverOut(e) {
+      const row = e.target.closest("tr")
+      if (!row || row.contains(e.relatedTarget)) return
+      const actions = row.querySelector(".row-actions")
+      if (actions) actions.style.opacity = "0"
+    }
+
+    // ── Inline rename ─────────────────────────────────────────────────────────
+    function startRename(id) {
+      renameProductId = id
+      const tbody = document.getElementById("list-tbody")
+      if (tbody) tbody.innerHTML = getRows()
+      const inp = document.getElementById("rename-inline-input")
+      if (inp) { inp.focus(); inp.select() }
+      updateScrollInd()
+    }
+
+    function cancelRename() {
+      renameProductId = null
+      const tbody = document.getElementById("list-tbody")
+      if (tbody) tbody.innerHTML = getRows()
+      updateScrollInd()
+    }
+
+    function saveInlineRename() {
+      const inp     = document.getElementById("rename-inline-input")
+      const saveBtn = document.getElementById("rename-save-icon")
+      const canBtn  = document.getElementById("rename-cancel-icon")
+      if (!inp) return
+      const val = inp.value.trim()
+      if (!val) return
+      inp.disabled = true
+      if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = ICON.spin }
+      if (canBtn)  { canBtn.disabled = true }
+      const id = renameProductId
+      setTimeout(() => {
+        products = products.map(p => p.id === id ? { ...p, name: val } : p)
+        renameProductId = null
+        const tbody = document.getElementById("list-tbody")
+        if (tbody) tbody.innerHTML = getRows()
+        updateScrollInd()
+        showToast("Product renamed.")
+      }, 1200)
+    }
+
+    // ── Merge view ────────────────────────────────────────────────────────────
+    function startMerge(id) {
+      activeProduct = products.find(p => p.id === id)
+      renameProductId = null; mergeSearch = ""; mergeTarget = null; currentView = "merge"
+      renderMergeView()
+    }
+
+    function renderMergeView() {
+      const source   = activeProduct
+      const filtered = products.filter(p => p.id !== source.id && p.name.toLowerCase().includes(mergeSearch.toLowerCase()))
+
+      const targetRows = filtered.length === 0
+        ? `<p style="padding:24px;text-align:center;font-size:14px;color:#6b7280;">No products found.</p>`
+        : filtered.map(p => {
+            const sel = mergeTarget && mergeTarget.id === p.id
+            return `
+              <button onclick="selectTarget('${p.id}')"
+                style="display:flex;width:100%;align-items:center;gap:12px;padding:10px 12px;text-align:left;background:${sel ? '#f8fafc' : 'transparent'};border:none;cursor:pointer;border-bottom:1px solid #f1f5f9;transition:background 0.1s"
+                onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='${sel ? '#f8fafc' : 'transparent'}'">
+                <div style="width:16px;height:16px;border-radius:50%;border:2px solid ${sel ? '#0f172a' : '#d1d5db'};background:${sel ? '#0f172a' : 'transparent'};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                  ${sel ? '<div style="width:6px;height:6px;border-radius:50%;background:#fff;"></div>' : ''}
+                </div>
+                <div style="min-width:0;">
+                  <p style="font-size:14px;font-weight:500;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(p.name)}</p>
+                  <p style="font-size:12px;color:#6b7280;">${p.ads} ads · Last seen ${p.lastSeen}</p>
+                </div>
+              </button>
+            `
+          }).join("")
+
+      const confirmBlock = mergeTarget ? `
+        <div style="margin-bottom:12px;border-radius:8px;border:1px solid #e5e7eb;background:#f8fafc;padding:10px 12px;font-size:14px;color:#111827;">
+          <span style="font-weight:600;">"${esc(source.name)}"</span> will be merged into
+          <span style="font-weight:600;">"${esc(mergeTarget.name)}"</span>. All related references will be reassigned to the selected product.
+        </div>
+      ` : ""
+
+      document.getElementById("modal-body").innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #f1f5f9;">
+          <button onclick="cancelAction()" style="display:flex;align-items:center;gap:6px;font-size:14px;color:#6b7280;border:none;background:none;cursor:pointer;padding:0;" onmouseover="this.style.color='#111827'" onmouseout="this.style.color='#6b7280'">
+            ${ICON.back} Back
+          </button>
+          <span style="font-size:14px;font-weight:600;color:#111827;">Merge Product</span>
+        </div>
+
+        <div style="padding:20px 24px;">
+          <p style="font-size:14px;color:#111827;margin-bottom:16px;">
+            Merge <span style="font-weight:600;">"${esc(source.name)}"</span> into another Hims/Hers product.
+          </p>
+
+          <div style="position:relative;margin-bottom:8px;">
+            <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#9ca3af;pointer-events:none;">${ICON.search}</span>
+            <input id="merge-search" type="text" placeholder="Search target product…" value="${esc(mergeSearch)}"
+              oninput="mergeSearch=this.value;mergeTarget=null;renderMergeView()"
+              style="width:100%;height:32px;padding:0 12px 0 32px;font-size:14px;border:1px solid #e5e7eb;border-radius:8px;outline:none;"
+            />
+          </div>
+
+          <div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;max-height:200px;overflow-y:auto;margin-bottom:16px;" class="scrollable">
+            ${targetRows}
+          </div>
+
+          ${confirmBlock}
+
+          <div style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:#6b7280;margin-bottom:20px;">
+            <span style="margin-top:1px;flex-shrink:0;">${ICON.warn}</span>
+            This action can't be undone.
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;">
+            <button onclick="cancelAction()" style="height:32px;padding:0 12px;font-size:14px;font-weight:500;border-radius:8px;border:1px solid #e5e7eb;background:#fff;color:#111827;cursor:pointer;">Cancel</button>
+            <button id="merge-btn" onclick="confirmMerge()" ${!mergeTarget ? "disabled" : ""}
+              style="display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;min-width:130px;justify-content:center;font-size:14px;font-weight:500;border-radius:8px;border:none;background:#0f172a;color:#fff;cursor:${mergeTarget ? 'pointer' : 'not-allowed'};opacity:${mergeTarget ? 1 : 0.4};">
+              Merge Products
+            </button>
+          </div>
+        </div>
+      `
+    }
+
+    function selectTarget(id) {
+      mergeTarget = products.find(p => p.id === id)
+      renderMergeView()
+    }
+
+    function confirmMerge() {
+      if (!mergeTarget) return
+      const btn = document.getElementById("merge-btn")
+      btn.disabled = true; btn.style.opacity = "0.7"
+      btn.innerHTML = `${ICON.spin} Merging products…`
+      const srcId = activeProduct.id
+      setTimeout(() => {
+        products = products.filter(p => p.id !== srcId)
+        currentView = "list"; activeProduct = null; mergeTarget = null
+        renderListView()
+        setTimeout(updateScrollInd, 50)
+        showToast("Products merged.")
+      }, 1200)
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    function cancelAction() {
+      currentView = "list"; activeProduct = null; renameProductId = null; mergeTarget = null
+      renderListView()
+      setTimeout(updateScrollInd, 50)
+    }
+
+    function esc(str) {
+      return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")
+    }
+
+    document.addEventListener("keydown", e => {
+      if (e.key === "Escape" && !document.getElementById("modal-root").classList.contains("hidden")) {
+        if (currentView !== "list") cancelAction()
+        else if (renameProductId) cancelRename()
+        else closeModal()
+      }
+    })
+  </script>
+</body>
+</html>
