@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Label Ads</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: "Open Sans", sans-serif; background: hsl(220 14.3% 95.9%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 32px; }
+
+    /* Image wrapper */
+    .image-wrapper { position: relative; display: inline-block; line-height: 0; flex-shrink: 0; }
+    .image-wrapper img { display: block; width: 1440px; height: 882px; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
+
+    /* Buttons over image */
+    .img-btn { position: absolute; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; border-radius: 6px; cursor: pointer; color: #6b7280; transition: background 0.15s, color 0.15s; }
+    .img-btn:hover { background: rgba(0,0,0,0.07); color: #111827; }
+    .img-btn .tip { display: none; position: absolute; bottom: calc(100% + 10px); right: -6px; background: #0f172a; color: #f8fafc; font-size: 11px; line-height: 1.5; padding: 6px 10px; border-radius: 8px; white-space: nowrap; box-shadow: 0 4px 16px rgba(0,0,0,0.25); pointer-events: none; z-index: 100; }
+    .img-btn .tip::after { content: ''; position: absolute; top: 100%; right: 10px; border: 5px solid transparent; border-top-color: #0f172a; }
+    .img-btn:hover .tip { display: block; }
+    .wand-btn  { top: 666px; right: 148px; }
+    .wand-btn .tip { width: 220px; white-space: normal; }
+    .dl-btn { top: 666px; right: 108px; }
+
+    /* Modal backdrop */
+    #modal-backdrop { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.15s ease; }
+    #modal-backdrop.open { opacity: 1; }
+    #modal-backdrop.hidden { display: none; }
+
+    /* Modal */
+    #modal { background: #fff; border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,0.18); width: 100%; max-width: 520px; transform: scale(0.95); transition: transform 0.15s ease, opacity 0.15s ease; opacity: 0; }
+    #modal-backdrop.open #modal { transform: scale(1); opacity: 1; }
+
+    .section-label { font-size: 14px; font-weight: 600; color: #111827; margin-bottom: 10px; }
+    .divider { height: 1px; background: #f1f5f9; margin: 4px -24px; }
+
+    /* Radio */
+    .radio-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+    /* Shadcn radio — light border unchecked, dark filled + white dot checked */
+    .radio-row input[type="radio"] { appearance: none; width: 16px; height: 16px; border: 1.5px solid #d4d4d8; border-radius: 50%; position: relative; flex-shrink: 0; cursor: pointer; background: #fff; transition: border-color 0.15s, background 0.15s; }
+    .radio-row input[type="radio"]:checked { border-color: #18181b; background: #18181b; }
+    .radio-row input[type="radio"]:checked::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 6px; height: 6px; background: #fff; border-radius: 50%; }
+    .radio-row label { font-size: 14px; color: #111827; cursor: pointer; user-select: none; white-space: nowrap; }
+
+    /* Date trigger button — always in DOM, opacity controls visibility */
+    #date-trigger-wrap { opacity: 0; pointer-events: none; transition: opacity 0.15s; }
+    #date-trigger-wrap.active { opacity: 1; pointer-events: auto; }
+    .date-trigger { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 11px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; font-family: inherit; font-size: 13px; cursor: pointer; color: #111827; transition: border-color 0.15s, box-shadow 0.15s; white-space: nowrap; }
+    .date-trigger:hover { border-color: #9ca3af; }
+    .date-trigger.open { border-color: #6b7280; box-shadow: 0 0 0 3px rgba(0,0,0,0.08); }
+    .date-trigger .ph { color: #9ca3af; }
+
+    /* Calendar — fixed overlay, doesn't push content */
+    #calendar-popup { position: fixed; z-index: 400; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.14); display: none; width: 540px; }
+    .cal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .cal-nav { width: 28px; height: 28px; border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #374151; flex-shrink: 0; transition: background 0.1s; }
+    .cal-nav:hover { background: #f9fafb; }
+    .cal-nav.invisible { visibility: hidden; pointer-events: none; }
+    .cal-month-title { font-size: 14px; font-weight: 600; color: #111827; text-align: center; flex: 1; }
+    .cal-weekdays { display: grid; grid-template-columns: repeat(7,1fr); margin-bottom: 2px; }
+    .cal-weekday { text-align: center; font-size: 12px; color: #9ca3af; font-weight: 500; padding: 4px 0; }
+    .cal-days { display: grid; grid-template-columns: repeat(7,1fr); }
+    .cal-day { text-align: center; cursor: pointer; user-select: none; }
+    .cal-day span { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; margin: 1px auto; font-size: 13px; color: #111827; transition: background 0.1s; }
+    .cal-day:hover:not(.outside) span { background: #f1f5f9; }
+    .cal-day.outside { pointer-events: none; }
+    .cal-day.outside span { color: #d1d5db; }
+    .cal-day.sel-start span, .cal-day.sel-end span { background: #0f172a !important; color: #fff !important; }
+    .cal-day.in-range { background: #f1f5f9; }
+    .cal-day.in-range span { border-radius: 0; background: transparent; }
+    .cal-day.sel-start.in-range { background: linear-gradient(to right, transparent 50%, #f1f5f9 50%); }
+    .cal-day.sel-end.in-range   { background: linear-gradient(to left,  transparent 50%, #f1f5f9 50%); }
+
+    /* Combobox */
+    .cb-trigger { display: flex; align-items: center; justify-content: space-between; height: 36px; padding: 0 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; font-family: inherit; font-size: 14px; cursor: pointer; color: #111827; width: 100%; transition: border-color 0.15s, box-shadow 0.15s; }
+    .cb-trigger:hover { border-color: #9ca3af; }
+    .cb-trigger.open { border-color: #6b7280; box-shadow: 0 0 0 3px rgba(0,0,0,0.08); }
+    .cb-trigger .ph { color: #9ca3af; }
+    .cb-badge { background: #f1f5f9; color: #374151; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 99px; margin-left: 6px; }
+
+    /* Country dropdown — fixed */
+    #country-dd { position: fixed; z-index: 500; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); display: none; overflow: hidden; }
+    #country-dd.open { display: block; }
+    .dd-search { padding: 8px; border-bottom: 1px solid #f1f5f9; }
+    .dd-search input { width: 100%; height: 32px; border: 1px solid #e5e7eb; border-radius: 6px; padding: 0 10px; font-size: 13px; font-family: inherit; outline: none; }
+    .dd-search input:focus { border-color: #9ca3af; }
+    .dd-list { max-height: 210px; overflow-y: auto; }
+    .dd-list::-webkit-scrollbar { width: 4px; }
+    .dd-list::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 99px; }
+    .dd-opt { display: flex; align-items: center; gap: 10px; padding: 7px 12px; font-size: 14px; color: #111827; cursor: pointer; transition: background 0.1s; }
+    .dd-opt:hover { background: #f8fafc; }
+    /* Shadcn checkbox — light border unchecked, dark filled checked */
+    .dd-check { width: 16px; height: 16px; border: 1px solid #d4d4d8; border-radius: 3px; background: #fff; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: background 0.1s, border-color 0.1s; }
+    .dd-opt.sel .dd-check { background: #18181b; border-color: #18181b; }
+    .dd-flag { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; flex-shrink: 0; display: inline-block; vertical-align: middle; }
+    #cb-display { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; }
+    /* Scroll indicator inside dropdown */
+    #dd-scroll-ind { position: absolute; bottom: 0; left: 0; right: 0; height: 38px; background: linear-gradient(to bottom, transparent, rgba(255,255,255,0.96) 60%); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 5px; cursor: pointer; opacity: 0; transition: opacity 0.15s; z-index: 10; border-radius: 0 0 10px 10px; pointer-events: none; }
+    #dd-scroll-ind.visible { opacity: 1; pointer-events: auto; }
+
+    /* Info */
+    .info-box { display: flex; align-items: flex-start; gap: 10px; padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid #f1f5f9; }
+
+    /* Buttons */
+    .btn-sec { height: 36px; padding: 0 16px; font-size: 14px; font-weight: 500; border-radius: 8px; border: 1px solid #e5e7eb; background: #fff; color: #374151; cursor: pointer; font-family: inherit; }
+    .btn-sec:hover { background: #f9fafb; }
+    .btn-pri { height: 36px; padding: 0 16px; font-size: 14px; font-weight: 600; border-radius: 8px; border: none; background: oklch(49.1% .27 292.581); color: #fff; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 6px; justify-content: center; min-width: 130px; }
+    .btn-pri:hover { opacity: 0.88; }
+    .btn-pri:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin { animation: spin 0.8s linear infinite; }
+  </style>
+</head>
+<body>
+
+  <div class="image-wrapper">
+    <img src="label-ads-screenshot.png" alt="" />
+    <button id="wand-btn" class="img-btn wand-btn" onclick="openModal()">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72Z"/>
+        <path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/>
+      </svg>
+      <span class="tip">Label ads across multiple episodes (supports custom date range and country selection)</span>
+    </button>
+
+    <button class="img-btn dl-btn">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/>
+        <path d="M12 12v9"/>
+        <path d="m8 17 4 4 4-4"/>
+      </svg>
+      <span class="tip">Download CSV</span>
+    </button>
+  </div>
+
+  <!-- Modal -->
+  <div id="modal-backdrop" class="hidden" onclick="handleBackdropClick(event)">
+    <div id="modal">
+
+      <!-- Header -->
+      <div style="padding:24px 24px 0;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+        <div>
+          <h2 style="font-size:16px;font-weight:600;color:#111827;">Label Ads</h2>
+          <p style="margin-top:4px;font-size:14px;color:#6b7280;line-height:1.5;">Label ads across episodes. Existing transcripts will be re-transcribed.</p>
+        </div>
+        <button onclick="closeModal()" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;border-radius:6px;color:#9ca3af;cursor:pointer;flex-shrink:0;margin-top:2px;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <!-- Body -->
+      <div style="padding:20px 24px;display:flex;flex-direction:column;gap:20px;">
+
+        <!-- Episodes -->
+        <div>
+          <p class="section-label">Episodes to process</p>
+
+          <div class="radio-row">
+            <input type="radio" id="ep-last50" name="ep" value="last50" checked onchange="setEpisodeMode('last50')">
+            <label for="ep-last50">Last 50 episodes</label>
+          </div>
+
+          <div class="radio-row">
+            <input type="radio" id="ep-custom" name="ep" value="custom" onchange="setEpisodeMode('custom')">
+            <label for="ep-custom">Custom date range</label>
+            <!-- Always in DOM — opacity controls visibility to prevent layout shift -->
+            <div id="date-trigger-wrap">
+              <button class="date-trigger" id="date-trigger" onclick="toggleCalendar()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                <span id="date-display" class="ph">Pick a date range</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+          <p id="date-error" style="display:none;font-size:12px;color:#ef4444;margin-top:6px;">Please select an end date to continue.</p>
+
+        <!-- Country -->
+        <div>
+          <p class="section-label">Country</p>
+          <div class="cb-trigger" id="cb-trigger" tabindex="0" onclick="toggleCountryDD(event)" onkeydown="if(event.key==='Enter'||event.key===' ')toggleCountryDD(event)">
+            <span id="cb-display" class="ph">All countries</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </div>
+        </div>
+
+        <!-- Info -->
+        <div class="info-box">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          <p style="font-size:13px;color:#6b7280;line-height:1.5;">This process may take several hours depending on the number of episodes and countries selected.</p>
+        </div>
+
+      </div>
+
+      <!-- Footer -->
+      <div style="padding:16px 24px;border-top:1px solid #f1f5f9;display:flex;justify-content:flex-end;gap:8px;">
+        <button class="btn-sec" onclick="closeModal()">Cancel</button>
+        <button class="btn-pri" id="run-btn" onclick="runLabeling()">Run Labeling</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Calendar popup — fixed, outside modal flow -->
+  <div id="calendar-popup">
+    <div class="cal-grid">
+      <div>
+        <div class="cal-header">
+          <button class="cal-nav" onclick="prevMonth()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
+          <span class="cal-month-title" id="left-title"></span>
+          <button class="cal-nav invisible"></button>
+        </div>
+        <div class="cal-weekdays"><div class="cal-weekday">Su</div><div class="cal-weekday">Mo</div><div class="cal-weekday">Tu</div><div class="cal-weekday">We</div><div class="cal-weekday">Th</div><div class="cal-weekday">Fr</div><div class="cal-weekday">Sa</div></div>
+        <div class="cal-days" id="left-days"></div>
+      </div>
+      <div>
+        <div class="cal-header">
+          <button class="cal-nav invisible"></button>
+          <span class="cal-month-title" id="right-title"></span>
+          <button class="cal-nav" onclick="nextMonth()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
+        </div>
+        <div class="cal-weekdays"><div class="cal-weekday">Su</div><div class="cal-weekday">Mo</div><div class="cal-weekday">Tu</div><div class="cal-weekday">We</div><div class="cal-weekday">Th</div><div class="cal-weekday">Fr</div><div class="cal-weekday">Sa</div></div>
+        <div class="cal-days" id="right-days"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Country dropdown -->
+  <div id="country-dd">
+    <div class="dd-search">
+      <input type="text" id="dd-search-input" placeholder="Search countries…" oninput="filterCountries(this.value)" onclick="event.stopPropagation()">
+    </div>
+    <div style="position:relative;">
+      <div class="dd-list" id="dd-list" onscroll="updateDdInd()"></div>
+      <div id="dd-scroll-ind" onmouseenter="ddIndStart()" onmouseleave="ddIndStop()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const FLAG_BASE = "https://hatscripts.github.io/circle-flags/flags/"
+
+    const COUNTRIES = [
+      {name:"United States",code:"us"},{name:"United Kingdom",code:"gb"},
+      {name:"Canada",code:"ca"},{name:"Australia",code:"au"},
+      {name:"Germany",code:"de"},{name:"France",code:"fr"},
+      {name:"Spain",code:"es"},{name:"Italy",code:"it"},
+      {name:"Brazil",code:"br"},{name:"Mexico",code:"mx"},
+      {name:"Netherlands",code:"nl"},{name:"Sweden",code:"se"},
+      {name:"Norway",code:"no"},{name:"Denmark",code:"dk"},
+      {name:"Finland",code:"fi"},{name:"Poland",code:"pl"},
+      {name:"Belgium",code:"be"},{name:"Switzerland",code:"ch"},
+      {name:"Austria",code:"at"},{name:"New Zealand",code:"nz"},
+      {name:"Ireland",code:"ie"},{name:"Japan",code:"jp"},
+      {name:"South Korea",code:"kr"},{name:"India",code:"in"},
+      {name:"Singapore",code:"sg"},{name:"South Africa",code:"za"},
+      {name:"Argentina",code:"ar"},{name:"Chile",code:"cl"},
+      {name:"Colombia",code:"co"},{name:"Portugal",code:"pt"},
+      {name:"Greece",code:"gr"},{name:"Turkey",code:"tr"},
+      {name:"UAE",code:"ae"},{name:"Saudi Arabia",code:"sa"},
+    ]
+
+    // ── Country dropdown ──────────────────────────────────────────────────────
+    let selectedCountries = new Set()
+    let countryFilter = ""
+    let ddOpen = false
+
+    function flagImg(code) {
+      return `<img class="dd-flag" src="${FLAG_BASE}${code}.svg" alt="" onerror="this.style.display='none'">`
+    }
+
+    // Lucide Check — same icon shadcn uses via lucide-react, sized to fill the 16px box
+    const CHECK_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`
+
+    function renderCountries() {
+      const f = countryFilter.toLowerCase()
+      const filtered = COUNTRIES.filter(c => c.name.toLowerCase().includes(f))
+      document.getElementById("dd-list").innerHTML = filtered.length === 0
+        ? `<p style="padding:16px;text-align:center;font-size:13px;color:#9ca3af;">No countries found.</p>`
+        : filtered.map(c => `
+            <div class="dd-opt ${selectedCountries.has(c.name)?'sel':''}"
+                 onmousedown="event.stopPropagation();event.preventDefault();toggleCountry('${c.name}')">
+              <span class="dd-check">${selectedCountries.has(c.name)?CHECK_SVG:''}</span>
+              ${flagImg(c.code)}
+              <span style="line-height:1;">${c.name}</span>
+            </div>`).join("")
+      updateDdInd()
+    }
+
+    function toggleCountry(name) {
+      selectedCountries.has(name) ? selectedCountries.delete(name) : selectedCountries.add(name)
+      updateCbDisplay(); renderCountries()
+    }
+
+    function updateCbDisplay() {
+      const el = document.getElementById("cb-display")
+      if (!selectedCountries.size) { el.className="ph"; el.innerHTML="All countries"; return }
+      const arr = [...selectedCountries]
+      const c = COUNTRIES.find(x => x.name === arr[0])
+      el.className = ""
+      el.innerHTML = `${flagImg(c?.code||'')} ${arr[0]}` +
+        (selectedCountries.size > 1 ? `<span class="cb-badge">+${selectedCountries.size-1}</span>` : "")
+    }
+
+    function filterCountries(val) { countryFilter = val; renderCountries() }
+
+    function toggleCountryDD(e) { e.stopPropagation(); ddOpen ? closeCountryDD() : openCountryDD() }
+
+    function openCountryDD() {
+      const rect = document.getElementById("cb-trigger").getBoundingClientRect()
+      const dd = document.getElementById("country-dd")
+      dd.style.top = (rect.bottom+4)+"px"; dd.style.left = rect.left+"px"; dd.style.width = rect.width+"px"
+      dd.classList.add("open"); document.getElementById("cb-trigger").classList.add("open")
+      ddOpen = true; countryFilter = ""; document.getElementById("dd-search-input").value = ""
+      document.getElementById("dd-list").scrollTop = 0
+      renderCountries()
+      setTimeout(() => { document.getElementById("dd-search-input").focus(); updateDdInd() }, 30)
+    }
+
+    function closeCountryDD() {
+      document.getElementById("country-dd").classList.remove("open")
+      document.getElementById("cb-trigger").classList.remove("open")
+      ddOpen = false
+    }
+
+    document.addEventListener("mousedown", e => {
+      if (!ddOpen) return
+      const dd = document.getElementById("country-dd"), tr = document.getElementById("cb-trigger")
+      if (!dd.contains(e.target) && !tr.contains(e.target)) closeCountryDD()
+    })
+
+    // Dropdown scroll indicator
+    let ddIndTimer = null
+    function updateDdInd() {
+      const list = document.getElementById("dd-list")
+      const ind  = document.getElementById("dd-scroll-ind")
+      if (!list || !ind) return
+      const hasMore = list.scrollHeight - list.scrollTop - list.clientHeight > 4
+      ind.classList.toggle("visible", hasMore)
+    }
+    function ddIndStart() {
+      const list = document.getElementById("dd-list")
+      ddIndTimer = setInterval(() => { list.scrollTop += 3; updateDdInd() }, 16)
+    }
+    function ddIndStop() { clearInterval(ddIndTimer); ddIndTimer = null }
+
+    // ── Calendar ──────────────────────────────────────────────────────────────
+    const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"]
+    let rangeStart=null, rangeEnd=null, leftYear=new Date().getFullYear(), leftMonth=new Date().getMonth(), calOpen=false
+
+    function sameDay(a,b) { return a&&b&&a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate() }
+    function mkDate(y,m,d) { return new Date(y,m,d) }
+
+    function updateDateDisplay() {
+      const el = document.getElementById("date-display")
+      const fmt = d => d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
+      if (!rangeStart)    { el.className="ph"; el.textContent="Pick a date range" }
+      else if (!rangeEnd) { el.className=""; el.textContent=fmt(rangeStart)+" – ..." }
+      else                { el.className=""; el.textContent=fmt(rangeStart)+" – "+fmt(rangeEnd) }
+    }
+
+    function renderCalendar() {
+      const ry = leftMonth===11 ? leftYear+1 : leftYear
+      const rm = leftMonth===11 ? 0 : leftMonth+1
+      document.getElementById("left-title").textContent  = MONTHS[leftMonth]+" "+leftYear
+      document.getElementById("right-title").textContent = MONTHS[rm]+" "+ry
+      fillMonth("left-days",  leftYear, leftMonth)
+      fillMonth("right-days", ry, rm)
+    }
+
+    function fillMonth(id, year, month) {
+      const firstDay  = new Date(year,month,1).getDay()
+      const total     = new Date(year,month+1,0).getDate()
+      const prevTotal = new Date(year,month,0).getDate()
+      const today     = new Date()
+      let cells = []
+
+      for (let i=firstDay-1; i>=0; i--) {
+        const [py,pm] = month===0 ? [year-1,11] : [year,month-1]
+        cells.push({day:prevTotal-i,year:py,month:pm,outside:true})
+      }
+      for (let day=1; day<=total; day++) cells.push({day,year,month,outside:false})
+      while (cells.length<42) {
+        const idx=cells.length-firstDay-total+1
+        const [ny,nm]=month===11?[year+1,0]:[year,month+1]
+        cells.push({day:idx,year:ny,month:nm,outside:true})
+      }
+
+      document.getElementById(id).innerHTML = cells.map(c => {
+        if (c.outside) return `<div class="cal-day outside"><span>${c.day}</span></div>`
+        const date    = mkDate(c.year,c.month,c.day)
+        const isStart = sameDay(date,rangeStart)
+        const isEnd   = sameDay(date,rangeEnd)
+        const inRange = rangeStart&&rangeEnd&&date>rangeStart&&date<rangeEnd
+        const isToday = sameDay(date,today)
+        let cls = "cal-day"
+        if (isStart) cls += " sel-start"
+        if (isEnd)   cls += " sel-end"
+        if (inRange||(isStart&&rangeEnd)||(isEnd&&rangeStart)) cls += " in-range"
+        return `<div class="${cls}" onclick="dayClick(${c.year},${c.month},${c.day})">
+          <span style="${isToday&&!isStart&&!isEnd?'text-decoration:underline;text-underline-offset:3px':''}">${c.day}</span>
+        </div>`
+      }).join("")
+    }
+
+    function dayClick(y,m,day) {
+      const date = mkDate(y,m,day)
+      if (!rangeStart||(rangeStart&&rangeEnd)) { rangeStart=date; rangeEnd=null }
+      else {
+        if (date>=rangeStart) rangeEnd=date
+        else { rangeStart=date; rangeEnd=null }
+      }
+      updateDateDisplay(); renderCalendar()
+      // Close calendar once end date is selected
+      if (rangeEnd) { clearDateError(); setTimeout(closeCalendar, 120) }
+    }
+
+    function prevMonth() { leftMonth===0?(leftMonth=11,leftYear--):leftMonth--; renderCalendar() }
+    function nextMonth() { leftMonth===11?(leftMonth=0,leftYear++):leftMonth++; renderCalendar() }
+
+    function openCalendar() {
+      const trigger = document.getElementById("date-trigger")
+      const popup   = document.getElementById("calendar-popup")
+      const rect    = trigger.getBoundingClientRect()
+      popup.style.top  = (rect.bottom+8)+"px"
+      popup.style.left = Math.min(rect.left, window.innerWidth-550)+"px"
+      popup.style.display = "block"
+      trigger.classList.add("open")
+      calOpen = true; renderCalendar()
+    }
+
+    function closeCalendar() {
+      document.getElementById("calendar-popup").style.display = "none"
+      document.getElementById("date-trigger").classList.remove("open")
+      calOpen = false
+    }
+
+    function toggleCalendar() { calOpen ? closeCalendar() : openCalendar() }
+
+    // Close calendar on outside click
+    document.addEventListener("mousedown", e => {
+      if (!calOpen) return
+      const popup   = document.getElementById("calendar-popup")
+      const trigger = document.getElementById("date-trigger")
+      if (!popup.contains(e.target) && !trigger.contains(e.target)) closeCalendar()
+    })
+
+    // ── Episode mode ──────────────────────────────────────────────────────────
+    function setEpisodeMode(mode) {
+      const wrap = document.getElementById("date-trigger-wrap")
+      if (mode==="custom") { wrap.classList.add("active") }
+      else { wrap.classList.remove("active"); closeCalendar(); clearDateError() }
+    }
+
+    // ── Modal ─────────────────────────────────────────────────────────────────
+    function openModal() {
+      const bd = document.getElementById("modal-backdrop")
+      bd.classList.remove("hidden")
+      requestAnimationFrame(() => bd.classList.add("open"))
+    }
+
+    function closeModal() {
+      closeCountryDD(); closeCalendar()
+      const bd = document.getElementById("modal-backdrop")
+      bd.classList.remove("open")
+      setTimeout(() => bd.classList.add("hidden"), 150)
+    }
+
+    function handleBackdropClick(e) { if (e.target===document.getElementById("modal-backdrop")) closeModal() }
+
+    // ── Labeling state ────────────────────────────────────────────────────────
+    const SPIN_SVG = `<svg class="spin" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`
+
+    function buildLabelingTooltip() {
+      const mode = document.querySelector('input[name="ep"]:checked')?.value || 'last50'
+      const fmt  = d => d.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})
+
+      const episodePart = (mode === 'custom' && rangeStart && rangeEnd)
+        ? `for episodes from ${fmt(rangeStart)} to ${fmt(rangeEnd)}`
+        : `in the last 50 episodes`
+
+      const n = selectedCountries.size
+      const countryPart = n === 0 ? '' : n === 1 ? ` for ${[...selectedCountries][0]}` : ` for ${n} countries`
+
+      return `Labeling ads ${episodePart}${countryPart}`
+    }
+
+    function startLabelingState(tooltip) {
+      const btn = document.getElementById("wand-btn")
+      if (!btn) return
+      btn.onclick = null
+      btn.style.cursor = "default"
+      btn.innerHTML = `${SPIN_SVG}<span class="tip" style="width:260px;white-space:normal;">${tooltip}</span>`
+    }
+
+    function showDateError(msg) {
+      const el = document.getElementById("date-error")
+      el.textContent = msg; el.style.display = "block"
+    }
+    function clearDateError() {
+      document.getElementById("date-error").style.display = "none"
+    }
+
+    function runLabeling() {
+      // Validate custom date range
+      const mode = document.querySelector('input[name="ep"]:checked')?.value
+      if (mode === "custom") {
+        if (!rangeStart) { showDateError("Please select a start date to continue."); return }
+        if (!rangeEnd)   { showDateError("Please select an end date to continue."); return }
+      }
+      clearDateError()
+      const tooltip = buildLabelingTooltip()
+      const btn = document.getElementById("run-btn")
+      btn.disabled = true
+      btn.innerHTML = `<svg class="spin" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Running…`
+      setTimeout(() => {
+        closeModal()
+        startLabelingState(tooltip)
+        setTimeout(() => { btn.disabled=false; btn.textContent="Run Labeling" }, 200)
+      }, 1500)
+    }
+
+    document.addEventListener("keydown", e => { if (e.key==="Escape") closeModal() })
+  </script>
+</body>
+</html>
